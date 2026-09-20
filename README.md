@@ -4,6 +4,14 @@
 
 An agent skill for reviewing existing skills and instruction files: identify misrouting, unnecessary constraints, excessive context, and unclear completion criteria. Produce evidence and actionable revisions while preserving useful boundaries.
 
+## Review scope
+
+Supports one skill, every skill in specified directories, or a cross-directory audit of installed skills. Nothing scans the whole machine by default. For a global review, first inventory user, project, system and active plugin skill locations; pass those paths explicitly. Cached or disabled plugins are not necessarily active. Directory symlinks are followed with cycle prevention and real-path deduplication; skipped entries are reported. Catalog review also considers routing conflicts and useful combinations.
+
+```bash
+.venv/bin/python scripts/audit_skills.py ~/.agents/skills ~/.codex/skills --host codex --json
+```
+
 ## What it does
 
 - Reviews one skill, a catalog, or `AGENTS.md` / `CLAUDE.md`.

@@ -101,7 +101,7 @@ class ScannerTests(unittest.TestCase):
 
     def test_fenced_examples_and_comments(self):
         self.write('````markdown\n```\nAlways run the full test suite.\n```\n````\n<!-- Never proceed without approval. -->\n')
-        self.assertEqual(self.run_scan()[1]['findings'], [])
+        self.assertTrue(all(f.get('context') == 'example-or-comment' and f.get('confidence') == 'low' for f in self.run_scan()[1]['findings']))
 
     def test_real_instruction_after_fence(self):
         self.write('~~~\nExample\n~~~\nAlways run the full test suite.\n')
@@ -131,6 +131,42 @@ class ScannerTests(unittest.TestCase):
     def test_duplicate_input(self):
         result = self.run_scan(str(self.skill / 'SKILL.md'))[1]
         self.assertEqual(result['coverage']['files_scanned'], 1)
+
+    def test_symlink_catalog_and_cycle(self):
+        catalog = self.root / 'catalog'; catalog.mkdir()
+        (catalog / 'linked').symlink_to(self.skill, target_is_directory=True)
+        (catalog / 'again').symlink_to(self.skill, target_is_directory=True)
+        (catalog / 'loop').symlink_to(catalog, target_is_directory=True)
+        (catalog / 'broken').symlink_to(self.root / 'absent')
+        code, result = self.run_scan(path=catalog)
+        self.assertEqual(code, 0)
+        self.assertEqual(result['coverage']['files_scanned'], 1)
+        self.assertEqual({s['reason'] for s in result['coverage']['skipped']}, {'duplicate-or-cycle', 'broken-symlink'})
+
+    def test_duplicate_yaml_keys(self):
+        self.policy('policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation: true\n')
+        code, result = self.run_scan('--host', 'codex')
+        self.assertEqual(code, 1)
+        self.assertEqual(result['files'][0]['invocation'], 'unknown')
+        self.assertIn('Duplicate YAML key', result['findings'][0]['message'])
+        p = self.skill / 'SKILL.md'
+        p.write_text(p.read_text().replace('name: sample', 'name: sample\nname: other'))
+        self.assertEqual(self.run_scan()[0], 1)
+
+    def test_yaml_merge_override(self):
+        self.policy('defaults: &defaults\n  allow_implicit_invocation: true\npolicy:\n  <<: *defaults\n  allow_implicit_invocation: false\n')
+        code, result = self.run_scan('--host', 'codex')
+        self.assertEqual(code, 0)
+        self.assertEqual(result['files'][0]['invocation'], 'explicit-only')
+
+    def test_normative_code_block(self):
+        self.write('```text\nNever proceed without approval.\n```\nFollow the block above.\n')
+        findings = self.run_scan()[1]['findings']
+        self.assertTrue(any(f['id'] == 'M2' and f['confidence'] == 'low' for f in findings))
+
+    def test_windows_path(self):
+        self.write(r'Run C:\Users\alice\tools\build.cmd' + '\n')
+        self.assertTrue(any(f['id'] == 'P3' for f in self.run_scan()[1]['findings']))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

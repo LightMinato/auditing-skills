@@ -16,6 +16,8 @@ Find instructions that measurably help or hinder the requested work. Preserve us
 
 Identify the intended host and models from available context. If unknown, audit general principles and mark host-specific claims unverified. Do not require another skill to perform this review.
 
+For a global request, inventory user, project, system and active plugin roots before scanning. Pass existing paths explicitly; distinguish installed or cached files from runtime-visible skills. Report skipped locations and coverage limits.
+
 ## Mechanical assistance
 
 Optional scanner, using Python 3.10+ and PyYAML (see `requirements.txt`):
@@ -25,6 +27,8 @@ python3 <skill-directory>/scripts/audit_skills.py <target-path> --host codex --j
 ```
 
 Replace placeholders with actual paths. Use `--host generic` when the host is unknown. Inputs must be explicit; scanning never executes the target's scripts or modifies its files. Resolve paths relative to the skill's actual location, not the caller's working directory.
+
+Code-block and comment matches remain low-confidence candidates; inspect whether they are examples or operative instructions. Duplicate YAML keys are rejected rather than silently overwritten.
 
 The scanner validates basic YAML structure and produces English-language pattern candidates. It reads Codex invocation policy from `agents/openai.yaml`. It does not simulate the loader, validate every host rule, scan reference prose, or measure behavior. `--max-description N` is an optional review budget, not a claim about truncation.
 

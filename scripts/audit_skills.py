@@ -20,7 +20,7 @@ FAMILIES = [
     ('M5', re.compile("\\bthink step[- ]by[- ]step\\b|\\brestate the (?:task|request|requirements|user'?s intent)\\b|\\bexplain your (?:reasoning|plan|approach) (?:first|before)\\b|\\bdescribe what you (?:will|are going to) do before\\b|\\bshow your (?:work|thinking)\\b|\\bfirst,? (?:make|create|write) a plan\\b[^.\\n]{0,40}\\b(?:wait|then share|and share)\\b", 34)),
     ('S2', re.compile('\\b(?:in this exact|in the following|in this specific) order\\b|\\bdo not skip (?:any )?steps?\\b|\\bfollow these steps (?:exactly|in order|without deviation)\\b|\\bmust be (?:done|performed|executed) in order\\b', 34)),
     ('S3', re.compile('^#{1,4}\\s+(?:what is\\b|introduction to\\b|background\\b|overview of\\b|primer on\\b)', 42)),
-    ('P3', re.compile('(?<![\\w/])/(?:Users|home)/[\\w.-]+|\\b[A-Z]:\\\\\\\\', 32)),
+    ('P3', re.compile(r'(?<![\w/])/(?:Users|home)/[\w.-]+|\b[A-Z]:[\\/]', re.I)),
 ]
 
 
@@ -47,8 +47,26 @@ def excluded_spans(text):
     return spans
 
 
+class UniqueSafeLoader(yaml.SafeLoader):
+    def construct_mapping(self, node, deep=False):
+        # Reject duplicate explicit keys before YAML merge expansion. Explicit
+        # overrides of merged defaults remain legal.
+        seen = set()
+        for key_node, _ in node.value:
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                continue
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                if key in seen:
+                    raise ValueError(f"Duplicate YAML key {key!r} at line {key_node.start_mark.line + 1}")
+                seen.add(key)
+            except TypeError as exc:
+                raise ValueError("YAML mapping keys must be hashable") from exc
+        return super().construct_mapping(node, deep=deep)
+
+
 def yaml_mapping(text):
-    value = yaml.safe_load(text)
+    value = yaml.load(text, Loader=UniqueSafeLoader)
     if not isinstance(value, dict):
         raise ValueError("expected a YAML mapping")
     return value
@@ -115,10 +133,11 @@ def audit(path, host, max_description):
     spans = excluded_spans(body)
     for check, pattern in FAMILIES:
         for match in pattern.finditer(body):
-            if any(a <= match.start() < b for a, b in spans):
-                continue
+            context = "example-or-comment" if any(a <= match.start() < b for a, b in spans) else "prose"
             add(check, "Pattern candidate only: inspect scope, negation, examples and the failure this rule prevents.",
                 line_at(text, offset + match.start()), match.group())
+            findings[-1]["context"] = context
+            findings[-1]["confidence"] = "low" if context == "example-or-comment" else "unassessed"
     for match in re.finditer(r"\[[^\]]*\]\(([^)\s]+)\)", body):
         if any(a <= match.start() < b for a, b in spans):
             continue
@@ -132,8 +151,26 @@ def audit(path, host, max_description):
     return info, findings
 
 
-def discover(paths):
-    found = set()
+def discover(paths, skipped=None):
+    found, visited = set(), set()
+    skipped = skipped if skipped is not None else []
+    def walk(path):
+        real = path.resolve()
+        if real in visited:
+            skipped.append(dict(path=str(path), reason="duplicate-or-cycle"))
+            return
+        visited.add(real)
+        entry = path / "SKILL.md"
+        if entry.is_file():
+            found.add(entry.resolve())
+            return
+        for child in sorted(path.iterdir()):
+            if child.name.startswith(".") and child.name != ".system":
+                skipped.append(dict(path=str(child), reason="hidden"))
+            elif child.is_symlink() and not child.exists():
+                skipped.append(dict(path=str(child), reason="broken-symlink"))
+            elif child.is_dir():
+                walk(child)
     for raw in paths:
         path = Path(raw).expanduser()
         if not path.exists():
@@ -142,11 +179,8 @@ def discover(paths):
             if path.name not in ("SKILL.md", "AGENTS.md", "CLAUDE.md"):
                 raise ValueError("Expected SKILL.md, AGENTS.md or CLAUDE.md: " + str(path))
             found.add(path.resolve())
-        elif (path / "SKILL.md").is_file():
-            found.add((path / "SKILL.md").resolve())
         else:
-            found.update(p.resolve() for p in path.rglob("SKILL.md")
-                         if not any(part.startswith(".") and part != ".system" for part in p.relative_to(path).parts))
+            walk(path)
     if not found:
         raise ValueError("No skill or instruction files found in the supplied paths")
     return sorted(found)
@@ -162,14 +196,15 @@ def main(argv=None):
     if args.max_description is not None and args.max_description < 1:
         parser.error("--max-description must be positive")
     try:
-        paths = discover(args.paths)
+        skipped = []
+        paths = discover(args.paths, skipped)
         results = [audit(p, args.host, args.max_description) for p in paths]
     except (OSError, UnicodeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     findings = [f for _, fs in results for f in fs]
     payload = dict(schema_version=1, host=args.host,
-                   coverage=dict(files_scanned=len(paths),
+                   coverage=dict(files_scanned=len(paths), skipped=skipped,
                                  scope="Selected entrypoints only; references require semantic review",
                                  heuristic_languages=["en"],
                                  behavior_tested=False, host_loading_tested=False,
@@ -179,6 +214,8 @@ def main(argv=None):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"Scanned {len(paths)} entrypoints; host={args.host}. English heuristics only; no behavioral evaluation.")
+        for item in skipped:
+            print(f"[skipped] {item['path']}: {item['reason']}")
         for f in findings:
             print(f"[{f['evidence']}] {f['id']} {f['file']}:{f['line']}: {f['message']}")
         print("No findings is not proof of a good skill. Review relevant references and realistic requests.")

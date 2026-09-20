@@ -21,3 +21,7 @@ For a questionable instruction, ask what failure or preference it addresses, whe
 Move deterministic enforcement to schemas, validators or permissions where practical. Retain concise instructions explaining the contract, how to invoke checks, and what to do with failures. Keep intent and non-obvious rationale discoverable.
 
 Choose retain, clarify, move or delete based on evidence and authorized scope. Do not delete merely because a rule is old or strict. Report unresolved conflicts and missing coverage separately from confirmed defects.
+
+## Usage-informed decisions (X4)
+
+When usage history is relevant, follow [usage evidence](usage-evidence.md). Rank observed task counts separately from success or usefulness; combine them with overlap, dependencies and user preferences before pruning.

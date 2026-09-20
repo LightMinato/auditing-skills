@@ -12,6 +12,15 @@ Supports one skill, every skill in specified directories, or a cross-directory a
 .venv/bin/python scripts/audit_skills.py ~/.agents/skills ~/.codex/skills --host codex --json
 ```
 
+## Usage-informed cleanup
+
+Usage history can inform a review when available and authorized. Follow [usage evidence](references/usage-evidence.md) to distinguish explicit selection, instruction reads, execution and successful completion. Rank observed task counts with coverage limits; exclude audit noise and deduplicate forked history. Zero observations do not establish that a skill was never used, and raw counts do not account for installation age.
+
+This is an agent review procedure, not a built-in telemetry collector: the static scanner does not count usage. Combine frequency with unique value, overlap and dependencies. On request, make specialized workflows explicit-only or retire redundant skills with a restoration record; low usage alone never triggers deletion. Keep personal history and usage reports out of public repositories.
+
+> Use $auditing-skills to simplify my personal skill catalog. Use available history as supporting evidence, retain useful capabilities, make specialized workflows explicit-only, and back up redundant skills before retiring them.
+
+
 ## What it does
 
 - Reviews one skill, a catalog, or `AGENTS.md` / `CLAUDE.md`.

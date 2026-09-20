@@ -11,6 +11,7 @@ Find instructions that measurably help or hinder the requested work. Preserve us
 
 - For one skill, inspect its entrypoint and relevant supporting resources using [checks](references/checks.md). Cover structure, routing, context, constraints, and completion as relevant; do not limit review to scanner matches.
 - For multiple skills, also use [catalog review](references/catalog-review.md) to distinguish competition from useful composition.
+- For usage-informed pruning, use [usage evidence](references/usage-evidence.md). Historical loads are supporting evidence, not successful-use counts or deletion criteria.
 - For unexplained pauses or disputed recommendations, use [behavioral evaluation](references/behavioral-evaluation.md). Model self-explanations are clues, not causal proof.
 - For AGENTS.md or CLAUDE.md, focus on task-wide constraints and their exceptions.
 
@@ -49,7 +50,7 @@ Prioritize by impact on the user's task. Blocking an intended workflow matters m
 
 ## Deliver or improve
 
-Default to a read-only audit. When changes are requested, make targeted edits and verify affected behavior without broadening authorization. Do not change invocation policy merely to reduce catalog size.
+Default to a read-only audit. When changes are requested, make targeted edits and verify affected behavior without broadening authorization. Change invocation policy only within the user’s requested scope; a request to make specialized workflows explicit-only authorizes that change. Do not infer this preference from catalog size or low usage alone.
 
 Scale the report to the scope: state coverage and limitations, then findings with file/line, short quote, evidence level, affected request, and a concrete rewrite. Mention rejected candidates only when they affect the conclusion. An audit with no actionable findings is valid.
 

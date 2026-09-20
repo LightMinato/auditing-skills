@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auditing Skills"
+  short_description: "Review skill routing, constraints and completion"
+  default_prompt: "Use $auditing-skills to review my skill with evidence and concrete improvements."
